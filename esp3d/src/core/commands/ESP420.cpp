@@ -26,6 +26,9 @@
 #if COMMUNICATION_PROTOCOL != SOCKET_SERIAL || defined(ESP_SERIAL_BRIDGE_OUTPUT)
 #include "../../modules/serial/serial_service.h"
 #endif  // COMMUNICATION_PROTOCOL != SOCKET_SERIAL
+#ifdef GRBL_BRIDGE_FEATURE
+#include "../../modules/grbl_bridge/grbl_bridge.h"
+#endif  // GRBL_BRIDGE_FEATURE
 #ifdef FILESYSTEM_FEATURE
 #include "../../modules/filesystem/esp_filesystem.h"
 #endif  // FILESYSTEM_FEATURE
@@ -764,6 +767,47 @@ void ESP3DCommands::ESP420(int cmd_params_pos, ESP3DMessage* msg) {
     return;
   }
 #endif  // ESP_SERIAL_BRIDGE_OUTPUT
+
+#ifdef GRBL_BRIDGE_FEATURE
+  // Two sender arbitration state, useful while commissioning the inline
+  // adapter: confirms which side owns the bus and whether client commands
+  // are currently being refused.
+  if (grbl_bridge.active()) {
+    switch (grbl_bridge.owner()) {
+      case GrblBridgeOwner::remote:
+        tmpstr = "bus=remote";
+        break;
+      case GrblBridgeOwner::web:
+        tmpstr = "bus=web";
+        break;
+      default:
+        tmpstr = "bus=idle";
+        break;
+    }
+    tmpstr += ", outstanding=";
+    tmpstr += String(static_cast<int>(grbl_bridge.outstanding()));
+    if (grbl_bridge.alarm()) {
+      tmpstr += ", ALARM";
+    }
+    tmpstr += ", webtx=";
+    tmpstr += grbl_bridge.webTxAllowed() ? "ok" : "LOCKED";
+    if (grbl_bridge.remoteDropped()) {
+      tmpstr += ", remote dropped=";
+      tmpstr += String(static_cast<uint32_t>(grbl_bridge.remoteDropped()));
+    }
+    if (grbl_bridge.cncOverflow() || grbl_bridge.remoteOverflow()) {
+      tmpstr += ", overflow=";
+      tmpstr += String(static_cast<uint32_t>(grbl_bridge.cncOverflow() +
+                                            grbl_bridge.remoteOverflow()));
+    }
+  } else {
+    tmpstr = "OFF";
+  }
+  if (!dispatchIdValue(json, "grbl_bridge", tmpstr.c_str(), target, requestId,
+                       false)) {
+    return;
+  }
+#endif  // GRBL_BRIDGE_FEATURE
 
 #if defined(AUTHENTICATION_FEATURE)
   // authentication enabled

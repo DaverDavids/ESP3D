@@ -60,6 +60,12 @@ class ESP3DSerialService final {
   ESP3DAuthenticationLevel getAuthentication();
 #if defined(ARDUINO_ARCH_ESP32)
   void receiveCb();
+#ifdef GRBL_BRIDGE_FEATURE
+  // Transparent consumer for the remote UART. Drains the hardware buffer and
+  // forwards the bytes to the GRBL bridge verbatim, so remote traffic never
+  // reaches the ESP3D command pipeline.
+  void receiveRemoteCb();
+#endif  // GRBL_BRIDGE_FEATURE
   static void receiveSerialCb();
   static void receiveBridgeSerialCb();
 #endif  // ARDUINO_ARCH_ESP32

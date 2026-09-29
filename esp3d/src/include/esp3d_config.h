@@ -76,4 +76,14 @@
 #define CONNECTED_DEVICES_FEATURE
 #endif  // DISPLAY_DEVICE || SENSOR_DEVICE , etc...
 
+// GRBL aware two sender serial arbiter (offline remote + web UI sharing one
+// CNC UART). It drives a second HardwareSerial, which only exists on ESP32,
+// and it needs the bridge port actually allocated. This is defined here
+// rather than in grbl_bridge.h so that every translation unit can test it
+// before including that header.
+#if defined(ARDUINO_ARCH_ESP32) && COMMUNICATION_PROTOCOL == RAW_SERIAL && \
+    defined(ESP_SERIAL_BRIDGE_OUTPUT)
+#define GRBL_BRIDGE_FEATURE
+#endif  // ARDUINO_ARCH_ESP32 && RAW_SERIAL && ESP_SERIAL_BRIDGE_OUTPUT
+
 #endif  //_ESP3D_CONFIG_H

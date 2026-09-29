@@ -25,6 +25,9 @@
 #include "../../core/esp3d_settings.h"
 #include "../../core/esp3d_string.h"
 #include "../authentication/authentication_service.h"
+#ifdef GRBL_BRIDGE_FEATURE
+#include "../grbl_bridge/grbl_bridge.h"
+#endif  // GRBL_BRIDGE_FEATURE
 #include "serial_service.h"
 
 #define SERIAL_COMMUNICATION_TIMEOUT 500
@@ -78,9 +81,43 @@ void ESP3DSerialService::receiveSerialCb() { esp3d_serial_service.receiveCb(); }
 
 #if defined(ESP_SERIAL_BRIDGE_OUTPUT)
 void ESP3DSerialService::receiveBridgeSerialCb() {
+#ifdef GRBL_BRIDGE_FEATURE
+  serial_bridge_service.receiveRemoteCb();
+#else   // GRBL_BRIDGE_FEATURE
   serial_bridge_service.receiveCb();
+#endif  // GRBL_BRIDGE_FEATURE
 }
 #endif  // ESP_SERIAL_BRIDGE_OUTPUT
+
+#ifdef GRBL_BRIDGE_FEATURE
+/* Transparent remote receive path.
+ * This is the sole consumer of the remote UART. Bytes go straight to the
+ * GRBL bridge and are never wrapped in an ESP3DMessage, so they cannot be
+ * intercepted by is_esp_command() and cannot be rewritten by
+ * formatCommand(). */
+void ESP3DSerialService::receiveRemoteCb() {
+  if (!started() || !_mutex) {
+    return;
+  }
+  if (xSemaphoreTake(_mutex, portMAX_DELAY)) {
+    uint8_t buffer[64];
+    size_t count = Serials[_serialIndex]->available();
+    while (count > 0) {
+      size_t chunk = (count < sizeof(buffer)) ? count : sizeof(buffer);
+      int rc = Serials[_serialIndex]->readBytes(buffer, chunk);
+      if (rc <= 0) {
+        esp3d_log_e("Remote serial read failed unexpectedly");
+        break;
+      }
+      grbl_bridge.onRemoteBytes(buffer, rc);
+      count -= rc;
+    }
+    xSemaphoreGive(_mutex);
+  } else {
+    esp3d_log_e("Mutex not taken");
+  }
+}
+#endif  // GRBL_BRIDGE_FEATURE
 
 void ESP3DSerialService::receiveCb() {
   if (!started()) {
@@ -90,11 +127,17 @@ void ESP3DSerialService::receiveCb() {
   if (xSemaphoreTake(_mutex, portMAX_DELAY)) {
     // Get expected len of data
     size_t count = Serials[_serialIndex]->available();
-    
+#ifdef GRBL_BRIDGE_FEATURE
+    // Raw mirror of the CNC stream, captured before any line splitting or
+    // filtering so the remote and ESP3D observe the identical byte order.
+    uint8_t raw[64];
+    size_t rawLen = 0;
+#endif  // GRBL_BRIDGE_FEATURE
+
     //loop until each byte is handled
     while (count > 0) {
       int data = Serials[_serialIndex]->read();
-      
+
       // If  read() failed we leave
       if (data == -1) {
         esp3d_log_e("Serial read failed unexpectedly");
@@ -102,6 +145,15 @@ void ESP3DSerialService::receiveCb() {
       }
       //take the char
       count--;
+#ifdef GRBL_BRIDGE_FEATURE
+      if (_id == MAIN_SERIAL) {
+        raw[rawLen++] = (uint8_t)data;
+        if (rawLen == sizeof(raw)) {
+          grbl_bridge.onCncBytes(raw, rawLen);
+          rawLen = 0;
+        }
+      }
+#endif  // GRBL_BRIDGE_FEATURE
       _buffer[_buffer_size] = (uint8_t)data;
       //check what next step is
       if (esp3d_string::isRealTimeCommand(_buffer[_buffer_size])) {
@@ -114,6 +166,11 @@ void ESP3DSerialService::receiveCb() {
         }
       }
     }
+#ifdef GRBL_BRIDGE_FEATURE
+    if (_id == MAIN_SERIAL && rawLen) {
+      grbl_bridge.onCncBytes(raw, rawLen);
+    }
+#endif  // GRBL_BRIDGE_FEATURE
     //release mutex
     xSemaphoreGive(_mutex);
   } else {

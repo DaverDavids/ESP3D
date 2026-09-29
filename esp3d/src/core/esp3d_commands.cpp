@@ -23,6 +23,9 @@
 #include "../include/esp3d_config.h"
 #include "esp3d.h"
 #include "esp3d_settings.h"
+#ifdef GRBL_BRIDGE_FEATURE
+#include "../modules/grbl_bridge/grbl_bridge.h"
+#endif  // GRBL_BRIDGE_FEATURE
 
 #if defined(ESP_LOG_FEATURE)
 const char *esp3dclientstr[] = {
@@ -1329,6 +1332,32 @@ bool ESP3DCommands::dispatch(ESP3DMessage *msg) {
 #if COMMUNICATION_PROTOCOL == RAW_SERIAL
     case ESP3DClientType::serial:
       esp3d_log("Serial message");
+#ifdef GRBL_BRIDGE_FEATURE
+      /* Single choke point for every client side producer: HTTP /command,
+       * the WebUI terminal websocket, telnet and the gcode host all land
+       * here. Refuse a queued class command while the offline remote owns
+       * the GRBL bus instead of splicing it into a running job. Realtime
+       * bytes (status poll, feed hold, reset) are always let through, so
+       * the page keeps updating and the operator can still stop the
+       * machine. */
+      /* Classify with the bridge's own table rather than
+       * esp3d_string::isRealTimeCommand(), so this gate can never refuse a
+       * byte the bridge would have forwarded. The helper is gated on the
+       * runtime firmware target setting, which can drift from DEFAULT_FW,
+       * and a false refusal here would black out the WebUI status readout
+       * during a remote job. */
+      if (grbl_bridge.active() && !grbl_bridge.webTxAllowed() &&
+          !grbl_bridge.isRealtime(msg->data, msg->size) &&
+          msg->type != ESP3DMessageType::realtimecmd) {
+        esp3d_log_e("Refused client command, remote owns the GRBL bus");
+        dispatch("TX locked out: the offline remote owns the GRBL bus, retry "
+                 "when it goes idle",
+                 ESP3DClientType::all_clients, no_id,
+                 ESP3DMessageType::core, ESP3DClientType::system);
+        esp3d_message_manager.deleteMsg(msg);
+        return false;
+      }
+#endif  // GRBL_BRIDGE_FEATURE
       if (!esp3d_serial_service.dispatch(msg)) {
         sendOk = false;
         esp3d_log_e("Serial dispatch failed");
@@ -1594,7 +1623,11 @@ bool ESP3DCommands::dispatch(ESP3DMessage *msg) {
       }
 #endif  // COMMUNICATION_PROTOCOL == SOCKET_SERIAL
 
-#if defined(ESP_SERIAL_BRIDGE_OUTPUT)
+// When the GRBL bridge is active the remote UART is fed by a raw byte mirror
+// taken from the CNC receive path (see grbl_bridge.onCncBytes). Replaying the
+// all_clients traffic here as well would send every CNC response to the remote
+// twice, so the ESP3D level mirror is disabled in that configuration.
+#if defined(ESP_SERIAL_BRIDGE_OUTPUT) && !defined(GRBL_BRIDGE_FEATURE)
       if (msg->origin != ESP3DClientType::serial_bridge) {
         if (msg->target == ESP3DClientType::all_clients) {
           // become the reference message

@@ -24,6 +24,9 @@
 #include "../../core/esp3d_settings.h"
 #include "../../core/esp3d_string.h"
 #include "../authentication/authentication_service.h"
+#ifdef GRBL_BRIDGE_FEATURE
+#include "../grbl_bridge/grbl_bridge.h"
+#endif  // GRBL_BRIDGE_FEATURE
 #include "serial_service.h"
 
 extern HardwareSerial *Serials[];
@@ -105,6 +108,19 @@ size_t ESP3DSerialService::writeBytes(const uint8_t *buffer, size_t size) {
   if (!_started) {
     return 0;
   }
+#ifdef GRBL_BRIDGE_FEATURE
+  if (_id == MAIN_SERIAL && grbl_bridge.active()) {
+    /* Single ordered transmit path.
+     * Every producer of CNC bound bytes (web UI, gcode host, ESP3D
+     * internals) funnels through here, so the remote and the web can never
+     * interleave inside a line. Returns size once queued; the actual UART
+     * write happens in grbl_bridge.handle(). */
+    if (!grbl_bridge.enqueueWebCnc(buffer, size)) {
+      return 0;
+    }
+    return size;
+  }
+#endif  // GRBL_BRIDGE_FEATURE
   if ((uint)Serials[_serialIndex]->availableForWrite() >= size) {
     return Serials[_serialIndex]->write(buffer, size);
   } else {

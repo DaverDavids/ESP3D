@@ -87,7 +87,23 @@
  * USE_SERIAL_2 //for ESP32 Only\
  * Comment if not used
  */
-// #define ESP_SERIAL_BRIDGE_OUTPUT USE_SERIAL_1
+#define ESP_SERIAL_BRIDGE_OUTPUT USE_SERIAL_1
+
+/* Serial pins - ESP32-C3 (Supermini) inline adapter
+ *  UART0 <-> CNC controller (GRBL)
+ *  UART1 <-> offline remote pendant
+ *  These are the macros honoured by esp3d_pins.h and consumed by
+ *  ESP3DSerialService::begin() as begin(baud, cfg, rx, tx).
+ *  Pin numbers here MUST match configuration.h below and be reachable
+ *  on the board. GPIO21 is also the default SDA pin; no display is
+ *  configured so there is no conflict.
+ */
+// Main serial (UART0) - CNC side
+#define ESP_RX_PIN 20
+#define ESP_TX_PIN 21
+// Bridge serial (UART1) - offline remote side
+#define ESP_BRIDGE_RX_PIN 4
+#define ESP_BRIDGE_TX_PIN 5
 
 /* Serial buffer size
  *  Maximum size of the serial buffer
@@ -108,7 +124,7 @@
  * SMOOTHIEWARE
  * REPETIER
  */
-#define DEFAULT_FW UNKNOWN_FW
+#define DEFAULT_FW GRBL
 
 /************************************
  *
@@ -567,8 +583,14 @@
 
 /* Enable serial commands
  * Allow commands to be sent to ESP3D via serial port
+ * NOTE: this macro is not read anywhere in the ESP3D 3.x sources. Command
+ * interception is driven by ESP3DCommands::is_esp_command(), which is
+ * unconditional. It is commented out here only to document intent: with the
+ * GRBL bridge active the remote is fed to the CNC by a raw byte path that
+ * never reaches is_esp_command(), so the remote path is transparent
+ * regardless of this setting.
  */
-#define SERIAL_COMMAND_FEATURE
+// #define SERIAL_COMMAND_FEATURE
 
 /* Allow remote access by enabling cross origin access
  * check https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS

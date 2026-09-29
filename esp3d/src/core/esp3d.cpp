@@ -62,6 +62,9 @@
 #if defined(USB_SERIAL_FEATURE)
 #include "../modules/usb-serial/usb_serial_service.h"
 #endif  // USB_SERIAL_FEATURE
+#ifdef GRBL_BRIDGE_FEATURE
+#include "../modules/grbl_bridge/grbl_bridge.h"
+#endif  // GRBL_BRIDGE_FEATURE
 
 bool Esp3D::restart = false;
 
@@ -141,6 +144,13 @@ bool Esp3D::begin() {
     res = false;
   }
 #endif  // ESP_SERIAL_BRIDGE_OUTPUT
+  // GRBL two sender arbiter. Must start after both UARTs are up.
+#ifdef GRBL_BRIDGE_FEATURE
+  if (!grbl_bridge.begin()) {
+    esp3d_log_e("Error with GRBL bridge");
+    res = false;
+  }
+#endif  // GRBL_BRIDGE_FEATURE
   // Setup Filesystem
 #if defined(FILESYSTEM_FEATURE)
   esp3d_log("Starting Filesystem feature");
@@ -196,6 +206,11 @@ void Esp3D::handle() {
 #if defined(ESP_SERIAL_BRIDGE_OUTPUT)
   serial_bridge_service.handle();
 #endif  // ESP_SERIAL_BRIDGE_OUTPUT
+#ifdef GRBL_BRIDGE_FEATURE
+  // Drains the queued CNC and remote bytes and maintains the bus lease.
+  // Runs first so serial traffic gets the lowest latency of the loop.
+  grbl_bridge.handle();
+#endif  // GRBL_BRIDGE_FEATURE
 #if COMMUNICATION_PROTOCOL == SOCKET_SERIAL
   Serial2Socket.handle();
 #endif  // COMMUNICATION_PROTOCOL == SOCKET_SERIAL
@@ -225,6 +240,9 @@ bool Esp3D::end() {
 #if defined(ESP_SERIAL_BRIDGE_OUTPUT)
   serial_bridge_service.end();
 #endif  // ESP_SERIAL_BRIDGE_OUTPUT
+#ifdef GRBL_BRIDGE_FEATURE
+  grbl_bridge.end();
+#endif  // GRBL_BRIDGE_FEATURE
 #if defined(WIFI_FEATURE) || defined(ETH_FEATURE)
   NetConfig::end();
 #endif  // WIFI_FEATURE || ETH_FEATURE

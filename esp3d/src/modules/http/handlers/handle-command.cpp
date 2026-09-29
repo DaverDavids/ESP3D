@@ -30,6 +30,9 @@
 #include "../../../core/esp3d_message.h"
 #include "../../../core/esp3d_settings.h"
 #include "../../../core/esp3d_string.h"
+#ifdef GRBL_BRIDGE_FEATURE
+#include "../../grbl_bridge/grbl_bridge.h"
+#endif  // GRBL_BRIDGE_FEATURE
 #include "../../authentication/authentication_service.h"
 
 
@@ -86,6 +89,22 @@ void HTTP_Server::handle_web_command() {
         esp3d_log_e("Cannot create message");
       }
     } else {
+#ifdef GRBL_BRIDGE_FEATURE
+      // The offline remote currently owns the GRBL bus. Refuse the queued
+      // class command instead of splicing it into a running job. Realtime
+      // bytes such as the status poll are unaffected and always pass, so
+      // the page keeps updating while the operator works from the pendant.
+      if (!grbl_bridge.webTxAllowed() &&
+          !ESP3DGrblBridge::isRealtime(reinterpret_cast<const uint8_t *>(
+                                           cmd.c_str()),
+                                       cmd.length())) {
+        esp3d_log_e("Web TX refused, remote owns the GRBL bus");
+        _webserver->send(409, "text/plain",
+                         "TX locked out: the offline remote owns the GRBL "
+                         "bus, retry when it goes idle");
+        return;
+      }
+#endif  // GRBL_BRIDGE_FEATURE
       HTTP_Server::set_http_headers();
       // the command is not ESP3D so it will be forwarded to the output client
       // no need to wait to answer then
