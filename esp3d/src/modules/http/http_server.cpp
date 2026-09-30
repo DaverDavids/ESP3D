@@ -62,6 +62,10 @@ void HTTP_Server::init_handlers() {
   _webserver->on("/command", HTTP_ANY, handle_web_command);
   // config
   _webserver->on("/config", HTTP_ANY, handle_config);
+#ifdef GRBL_BRIDGE_FEATURE
+  // one word arbitration state, polled by the injected web UI badge
+  _webserver->on("/bridge", HTTP_GET, handle_bridge_status);
+#endif  // GRBL_BRIDGE_FEATURE
   // need to be there even no authentication to say to UI no authentication
   _webserver->on("/login", HTTP_ANY, handle_login);
 #ifdef FILESYSTEM_FEATURE

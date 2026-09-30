@@ -162,6 +162,10 @@ class ESP3DGrblBridge final {
    * next streamed line arriving. */
   bool _busQuiet;
   uint32_t _busQuietMs;
+  /* Set when the remote sent M2/M30, meaning the program from its SD card
+   * has finished and the bus can be handed over as soon as the last line is
+   * acknowledged, without waiting out GRBL_BRIDGE_HANDOFF_HOLD_MS. */
+  bool _programEnded;
   uint32_t _remoteDropped;
   uint32_t _cncOverflow;
   uint32_t _remoteOverflow;

@@ -75,6 +75,9 @@ class HTTP_Server {
   static void handle_not_found();
   static void handle_web_command();
   static void handle_config();
+#ifdef GRBL_BRIDGE_FEATURE
+  static void handle_bridge_status();
+#endif  // GRBL_BRIDGE_FEATURE
   // static void handle_Websocket_Event(uint8_t num, uint8_t type, uint8_t *
   // payload, size_t length);
 #ifdef FILESYSTEM_FEATURE

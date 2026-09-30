@@ -60,6 +60,68 @@ static bool isGrblAck(const uint8_t *line, size_t len, size_t *lines) {
   return false;
 }
 
+/* Some senders, including pendant style offline controllers with physical
+ * buttons, terminate their realtime bytes with a newline, turning "!" into
+ * a one character line. GRBL still treats the content as realtime, but this
+ * module would otherwise count it as a queued command and could refuse it
+ * while the other sender owns the bus. So the queued form is promoted to
+ * realtime to keep the two encodings equivalent.
+ *
+ * A single character line cannot be meaningful G code on its own, so
+ * promoting it is safe. $X unlock is included because a pendant sends it to
+ * clear an alarm and GRBL accepts it in any state. */
+static bool isRemoteSafetyLine(const uint8_t *line, size_t len) {
+  while (len && (line[0] == ' ' || line[0] == '\t')) {
+    line++;
+    len--;
+  }
+  while (len &&
+         (line[len - 1] == ' ' || line[len - 1] == '\t' ||
+          line[len - 1] == '\r' || line[len - 1] == '\n')) {
+    len--;
+  }
+  if (len == 0) {
+    return false;
+  }
+  if (len == 1) {
+    return isGrblRealtime(line[0]);  // !  ~  0x18  and the realtime set
+  }
+  // $X unlock, which is what a pendant sends after clearing an alarm
+  if (len == 2 && line[0] == '$' && (line[1] == 'X' || line[1] == 'x')) {
+    return true;
+  }
+  return false;
+}
+
+/* Programs run from a pendant's SD card, like everything else, end with M2 or
+ * M30. GRBL goes idle once it has executed one and accepts nothing further
+ * until the next program starts, which makes it a reliable end of job marker.
+ * Using it lets the bus be handed over as soon as the final line is
+ * acknowledged, instead of waiting out the handoff hold. Without this a long
+ * job would keep the pendant locked in long after it finished. */
+static bool isProgramEndLine(const uint8_t *line, size_t len) {
+  while (len && (line[0] == ' ' || line[0] == '\t')) {
+    line++;
+    len--;
+  }
+  while (len &&
+         (line[len - 1] == ' ' || line[len - 1] == '\t' ||
+          line[len - 1] == '\r' || line[len - 1] == '\n')) {
+    len--;
+  }
+  if (len < 2 || line[0] != 'M') {
+    return false;
+  }
+  if (line[1] == '2' && (len == 2 || line[2] < '0' || line[2] > '9')) {
+    return true;
+  }
+  if (len >= 3 && line[1] == '3' && line[2] == '0' &&
+      (len == 3 || line[3] < '0' || line[3] > '9')) {
+    return true;
+  }
+  return false;
+}
+
 bool ESP3DGrblBridge::begin() {
   if (_active) {
     return true;
@@ -106,6 +168,7 @@ bool ESP3DGrblBridge::begin() {
   _alarm = false;
   _busQuiet = false;
   _busQuietMs = 0;
+  _programEnded = false;
   _remoteLineLen = 0;
   _respLen = 0;
   _ownerLastMs = millis();
@@ -334,13 +397,28 @@ void ESP3DGrblBridge::_commitRemoteLine(bool terminated) {
   if (_remoteLineLen == 0) {
     return;
   }
+  size_t n = _remoteLineLen;
+  if (terminated && n < sizeof(_remoteLine)) {
+    _remoteLine[n++] = '\n';
+  }
+  _remoteLineLen = 0;
+
+  /* A sender may deliver its realtime bytes as newline terminated lines, or
+   * as a bare byte. Both encodings must behave identically, so promote the
+   * short form to realtime: no lease check, no outstanding count, no
+   * ownership change. GRBL treats these as realtime, so forwarding them
+   * during a running job cannot corrupt the program. */
+  if (isRemoteSafetyLine(_remoteLine, n)) {
+    _cncPush(_remoteLine, n);
+    return;
+  }
+
   /* Decide ownership and count the line as one atomic step. If these were
    * separate, the loop task could observe owner=remote with outstanding=0
    * and release the lease, leaving a remote line in flight that the web
    * would then be allowed to splice into. */
   bool refuse = false;
   if (xSemaphoreTake(_stateMutex, pdMS_TO_TICKS(10)) != pdTRUE) {
-    _remoteLineLen = 0;
     return;
   }
   if (_owner != GrblBridgeOwner::none && _owner != GrblBridgeOwner::remote) {
@@ -353,19 +431,18 @@ void ESP3DGrblBridge::_commitRemoteLine(bool terminated) {
     _takeLease(GrblBridgeOwner::remote);
     _outstanding++;
     _ownerLastMs = millis();
+    /* End of program: release as soon as this last line is acknowledged
+     * rather than holding the bus for the full handoff delay. */
+    if (isProgramEndLine(_remoteLine, n)) {
+      _programEnded = true;
+    }
   }
   xSemaphoreGive(_stateMutex);
 
   if (refuse) {
     esp3d_log_e("GRBL bridge dropped remote line, web owns the bus");
-    _remoteLineLen = 0;
     return;
   }
-  size_t n = _remoteLineLen;
-  if (terminated && n < sizeof(_remoteLine)) {
-    _remoteLine[n++] = '\n';
-  }
-  _remoteLineLen = 0;
   if (_cncPush(_remoteLine, n) != n) {
     // ring was full, the line never reached the bus, so undo the count
     if (xSemaphoreTake(_stateMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
@@ -572,12 +649,17 @@ void ESP3DGrblBridge::handle() {
    * task cannot take ownership between the test and the release. */
   if (xSemaphoreTake(_stateMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
     if (_outstanding == 0 && !_alarm) {
-      /* The bus is free, but hold the lease for a moment before handing it
-       * over. A streaming sender has zero outstanding lines for a few
-       * milliseconds between "ok" for line N and line N+1 arriving over the
-       * network, and releasing on zero alone would let the other sender
-       * splice a command into the middle of a running job. */
-      if (_owner == GrblBridgeOwner::none) {
+      /* End of program: the pendant is done, hand the bus over now. */
+      if (_programEnded) {
+        _programEnded = false;
+        _busQuiet = false;
+        _releaseLease();
+      } else if (_owner == GrblBridgeOwner::none) {
+        /* The bus is free, but hold the lease for a moment before handing
+         * it over. A streaming sender has zero outstanding lines for a few
+         * milliseconds between "ok" for line N and line N+1 arriving over
+         * the network, and releasing on zero alone would let the other
+         * sender splice a command into the middle of a running job. */
         _busQuiet = false;
       } else if (!_busQuiet) {
         _busQuiet = true;
