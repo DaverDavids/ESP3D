@@ -77,13 +77,21 @@
 #endif  // DISPLAY_DEVICE || SENSOR_DEVICE , etc...
 
 // GRBL aware two sender serial arbiter (offline remote + web UI sharing one
-// CNC UART). It drives a second HardwareSerial, which only exists on ESP32,
-// and it needs the bridge port actually allocated. This is defined here
-// rather than in grbl_bridge.h so that every translation unit can test it
-// before including that header.
-#if defined(ARDUINO_ARCH_ESP32) && COMMUNICATION_PROTOCOL == RAW_SERIAL && \
-    defined(ESP_SERIAL_BRIDGE_OUTPUT)
-#define GRBL_BRIDGE_FEATURE
-#endif  // ARDUINO_ARCH_ESP32 && RAW_SERIAL && ESP_SERIAL_BRIDGE_OUTPUT
+// CNC UART).
+//
+// This is deliberately NOT inferred from the port assignment. The bridge
+// changes what the serial port means: only one sender may own the CNC at a
+// time, ownership never changes hands on a timer, and a transport fault
+// latches until an operator clears it. A configuration that has never been
+// reviewed for those semantics must not silently acquire them because it
+// happened to allocate UART1.
+//
+// To enable it, opt in explicitly in configuration.h:
+//   #define GRBL_BRIDGE_FEATURE
+// Requirements (checked in grbl_bridge.h by static_assert):
+//   ESP32, RAW_SERIAL, ESP_SERIAL_BRIDGE_OUTPUT defined and distinct from
+//   ESP_SERIAL_OUTPUT, and all four pin macros set to real pins.
+// This block only reports an obvious misconfiguration early, with a message
+// that says what to do, instead of failing later at static_assert.
 
 #endif  //_ESP3D_CONFIG_H

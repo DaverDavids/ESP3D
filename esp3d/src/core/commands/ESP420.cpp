@@ -770,38 +770,50 @@ void ESP3DCommands::ESP420(int cmd_params_pos, ESP3DMessage* msg) {
 
 #ifdef GRBL_BRIDGE_FEATURE
   // Two sender arbitration state, useful while commissioning the inline
-  // adapter: confirms which side owns the bus and whether client commands
-  // are currently being refused.
-  if (grbl_bridge.active()) {
-    switch (grbl_bridge.owner()) {
-      case GrblBridgeOwner::remote:
-        tmpstr = "bus=remote";
-        break;
-      case GrblBridgeOwner::web:
-        tmpstr = "bus=web";
-        break;
-      default:
-        tmpstr = "bus=idle";
-        break;
+  // adapter: who owns the bus, whether client commands are being refused,
+  // and whether anything was lost or miscounted.
+  {
+    ESP3DGrblBridge::Status s = grbl_bridge.status();
+    if (s.active) {
+      tmpstr = String("bus=") + grblBridgeOwnerName(s.owner);
+      tmpstr += ", inflight=";
+      tmpstr += String(static_cast<int>(s.outstanding));
+      if (s.resyncing) {
+        tmpstr += ", resync";
+      }
+      if (s.hold) {
+        tmpstr += ", hold";
+      }
+      if (s.inMotion) {
+        tmpstr += ", motion";
+      }
+      if (s.alarm) {
+        tmpstr += ", ALARM";
+      }
+      tmpstr += ", webtx=";
+      tmpstr += grbl_bridge.webTxAllowed() ? "ok" : "LOCKED";
+      if (s.faulted) {
+        tmpstr += String(", FAULT=") + grblBridgeFaultName(s.fault);
+      }
+      if (s.refused) {
+        tmpstr += ", refused=";
+        tmpstr += String(static_cast<uint32_t>(s.refused));
+      }
+      if (s.queueRejected) {
+        tmpstr += ", queuefull=";
+        tmpstr += String(static_cast<uint32_t>(s.queueRejected));
+      }
+      if (s.rxLost) {
+        tmpstr += ", lost=";
+        tmpstr += String(static_cast<uint32_t>(s.rxLost));
+      }
+      if (s.badAcks) {
+        tmpstr += ", strayack=";
+        tmpstr += String(static_cast<uint32_t>(s.badAcks));
+      }
+    } else {
+      tmpstr = "OFF";
     }
-    tmpstr += ", outstanding=";
-    tmpstr += String(static_cast<int>(grbl_bridge.outstanding()));
-    if (grbl_bridge.alarm()) {
-      tmpstr += ", ALARM";
-    }
-    tmpstr += ", webtx=";
-    tmpstr += grbl_bridge.webTxAllowed() ? "ok" : "LOCKED";
-    if (grbl_bridge.remoteDropped()) {
-      tmpstr += ", remote dropped=";
-      tmpstr += String(static_cast<uint32_t>(grbl_bridge.remoteDropped()));
-    }
-    if (grbl_bridge.cncOverflow() || grbl_bridge.remoteOverflow()) {
-      tmpstr += ", overflow=";
-      tmpstr += String(static_cast<uint32_t>(grbl_bridge.cncOverflow() +
-                                            grbl_bridge.remoteOverflow()));
-    }
-  } else {
-    tmpstr = "OFF";
   }
   if (!dispatchIdValue(json, "grbl_bridge", tmpstr.c_str(), target, requestId,
                        false)) {

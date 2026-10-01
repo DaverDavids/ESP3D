@@ -22,7 +22,10 @@
 
 #include "../../include/esp3d_config.h"
 
-// GRBL_BRIDGE_FEATURE is defined in esp3d_config.h, which is included above.
+/* GRBL_BRIDGE_FEATURE must be opted into explicitly in configuration.h.
+ * It is deliberately NOT auto enabled by esp3d_config.h: the bridge changes
+ * the meaning of the serial port and must never silently activate on a
+ * configuration that was never reviewed for it. */
 #ifdef GRBL_BRIDGE_FEATURE
 
 #include <Arduino.h>
@@ -44,47 +47,43 @@ static_assert(!(ESP_RX_PIN == ESP_BRIDGE_RX_PIN ||
 static_assert(ESP_SERIAL_OUTPUT != ESP_SERIAL_BRIDGE_OUTPUT,
               "GRBL bridge: the CNC and the remote cannot be the same UART");
 
-/* Byte capacity of the two transit buffers.
- * CNC direction must absorb a full GRBL status report burst plus a
- * response line without blocking the UART0 receive task.
- */
+/* Normal command bytes in transit to the CNC.
+ * Admission is all or nothing, so this must comfortably hold at least one
+ * maximum length line plus whatever a sender streams ahead of the acks. */
 #define GRBL_BRIDGE_CNC_RING 2048
+
+/* CNC -> remote mirror. Absorbs status report bursts plus a response line. */
 #define GRBL_BRIDGE_REMOTE_RING 1024
 
-/* Longest partial line held while waiting for '\n'. */
+/* Separate small queue carrying only realtime bytes, so a feed hold or a
+ * reset can never sit behind a large backlog of normal traffic. */
+#define GRBL_BRIDGE_CNC_PRIO_RING 64
+
+/* Longest normal command accepted from either sender. Anything longer is
+ * rejected outright rather than split, because splitting would turn one
+ * command into several malformed ones. */
 #define GRBL_BRIDGE_LINE_MAX 512
 
-/* Force-release the lease if GRBL stops acknowledging for this long.
- * Only applies when a sender has gone silent mid line (alarm, lost ok).
- * A healthy sender releases the lease after GRBL_BRIDGE_HANDOFF_HOLD_MS
- * of quiet, so this timeout is never seen during normal streaming.
- */
-#define GRBL_BRIDGE_LEASE_TIMEOUT_MS 5000
+/* Bytes of normal traffic we are willing to have queued ahead of the wire.
+ * Admitting beyond this is refused so the normal path cannot build a backlog
+ * that the realtime path would have to queue behind. */
+#define GRBL_BRIDGE_CNC_HIGH_WATER 1024
 
-/* How long the lease is held after the last outstanding line is
- * acknowledged, before the bus is offered to the other sender.
- *
- * This is the one setting that trades off the two failure modes:
- *   too short -> a streamed job momentarily has zero outstanding lines
- *               between "ok" for line N and line N+1 arriving over WiFi.
- *               If that gap is wide enough, the other sender can take the
- *               bus and splice a line into the middle of a running job.
- *   too long  -> after a job ends, the other sender waits this long to
- *               take over, which is dead time for the operator.
- *
- * It does NOT add any delay to the sender that currently owns the bus:
- * that sender is free to stream the whole time. It only delays handover.
- * Raise it if the offline pendant is allowed to interrupt a job; lower it
- * if you switch senders by hand and want a snappier takeover.
- */
-#define GRBL_BRIDGE_HANDOFF_HOLD_MS 1500
+/* A sender that stops making progress for this long latches a fault. It does
+ * NOT hand the bus to the other sender: a long move legitimately produces no
+ * "ok" for a long time, and opening the bus there would splice another
+ * sender into a running cut. Recovery is explicit. */
+#define GRBL_BRIDGE_ACK_TIMEOUT_MS 15000
 
-/* Safety net for a remote that omits the terminating '\n' on a queued
- * command. A physical pendant emits whole lines atomically, so this
- * only fires for hand typed or non conforming senders. Realtime bytes
- * are never held back by this.
- */
-#define GRBL_BRIDGE_IDLE_LINE_FLUSH_MS 250
+/* How long to wait for the controller's post-resync proof after a soft reset
+ * before latching a fault. */
+#define GRBL_BRIDGE_RESYNC_TIMEOUT_MS 3000
+
+/* A handover is only accepted on a status report this fresh. Without it the
+ * controller might be mid move and the silence would be the only evidence,
+ * which is exactly the reasoning that made the previous timeout release
+ * unsafe. */
+#define GRBL_BRIDGE_STATUS_FRESH_MS 2000
 
 /* Upper bound on bytes moved per handle() call so network tasks are not
  * starved by a saturated link. */
@@ -96,12 +95,29 @@ enum class GrblBridgeOwner : uint8_t {
   web = 2,
 };
 
+/* Latched transport or accounting failure. While set, normal commands are
+ * refused from both senders and only realtime bytes still pass, so a feed
+ * hold or reset always remains available. Cleared explicitly by the
+ * operator, never by a timer. */
+enum class GrblBridgeFault : uint8_t {
+  none = 0,
+  ack_timeout = 1,     // a command was never acknowledged
+  resync_timeout = 2,  // no status report after a reset
+  rx_overflow = 3,     // bytes were lost on the mirror side
+  queue_rejected = 4,  // a command did not fit and was refused
+  oversized_cmd = 5,   // a sender sent a line longer than LINE_MAX
+  bad_accounting = 6,  // an ack arrived with nothing outstanding
+};
+
+const char *grblBridgeOwnerName(GrblBridgeOwner o);
+const char *grblBridgeFaultName(GrblBridgeFault f);
+
 class ESP3DGrblBridge final {
  public:
   bool begin();
   void end();
-  // Called from the Arduino loop. Pumps both directions and maintains the
-  // lease. Never blocks.
+  // Called from the Arduino loop. Pumps both directions, tracks controller
+  // state and maintains the fault latch. Never blocks on a UART write.
   void handle();
 
   // Raw CNC -> remote mirror plus GRBL acknowledgement accounting.
@@ -116,15 +132,26 @@ class ESP3DGrblBridge final {
   void onRemoteBytes(const uint8_t *data, size_t len);
 
   // Web / gcode host -> CNC. Replaces the direct UART write so that every
-  // producer shares one ordered transmit path. Returns false when the
-  // remote currently owns the bus.
+  // producer shares one ordered transmit path. Always reports the bytes as
+  // accepted, because a partial line is held until its terminator arrives;
+  // refusals are visible through status(), [ESP420] and the web badge.
   bool enqueueWebCnc(const uint8_t *data, size_t len);
 
-  /* The single authoritative GRBL realtime classifier. Callers that need
-   * to decide "is this a safe pass through command" must use this rather
-   * than esp3d_string::isRealTimeCommand(), which is gated on the runtime
-   * firmware target setting. Using the two inconsistently would let a gate
-   * refuse a status poll that the bridge itself would happily forward. */
+  /* Explicit ownership handover. Refused, with a reason, unless it is safe:
+   * no latched fault, nothing outstanding, a fresh status report saying the
+   * controller is idle. There is no automatic handover and no timeout based
+   * release, because neither can distinguish "finished" from "mid cut". */
+  bool requestOwner(GrblBridgeOwner who, const char **why);
+  bool clearFault();
+
+  /* The single authoritative GRBL realtime classifier. Callers deciding
+   * "is this a safe pass through command" must use this rather than
+   * esp3d_string::isRealTimeCommand(), which is gated on the runtime
+   * firmware target setting and can therefore disagree with what the bridge
+   * would actually forward.
+   *
+   * Note that $X is deliberately NOT realtime: it is a normal line, so it
+   * obeys ownership and its "ok" is accounted for. */
   static bool isRealtime(const uint8_t *data, size_t len) {
     if (!data || len != 1) {
       return false;
@@ -135,81 +162,127 @@ class ESP3DGrblBridge final {
     }
     return c >= 0x80 && c <= 0xA4;
   }
-  bool active() const { return _active; }
-  GrblBridgeOwner owner() const { return _owner; }
-  uint16_t outstanding() const { return _outstanding; }
-  bool alarm() const { return _alarm; }
-  // Unsynchronised single word reads, used only for display and for the
-  // early pre-check in the dispatch path. These are atomic on RV32 for
-  // naturally aligned words, and a stale read is harmless: enqueueWebCnc()
-  // repeats the check under _stateMutex and is the real gate.
-  bool webTxAllowed() const { return _owner != GrblBridgeOwner::remote; }
-  // Set when the remote tried to send a queued class command while the web
-  // held the lease. Surfaced through the [ESP420] status block.
-  uint32_t remoteDropped() const { return _remoteDropped; }
-  uint32_t cncOverflow() const { return _cncOverflow; }
-  uint32_t remoteOverflow() const { return _remoteOverflow; }
+
+  // Snapshot. Takes _stateMutex, so a caller on any task gets a coherent
+  // view rather than a racy single word read.
+  struct Status {
+    bool active;
+    bool faulted;
+    GrblBridgeFault fault;
+    GrblBridgeOwner owner;
+    uint16_t outstanding;
+    bool alarm;
+    bool resyncing;
+    bool sawStatus;
+    bool inMotion;
+    bool hold;
+    uint32_t refused;
+    uint32_t queueRejected;
+    uint32_t rxLost;
+    uint32_t badAcks;
+  };
+  Status status() const;
+
+  // True when a web originated normal command may be admitted. Takes the
+  // state mutex itself, so it is not derived from status().
+  bool webTxAllowed() const;
 
  private:
+  /* Locking.
+   *
+   * _stateMutex guards the whole ownership/fault/accounting block, both CNC
+   * transmit rings, and all three line assembly buffers. It is the only
+   * lock on the CNC path, which is what makes admission and acknowledgement
+   * counting a single transaction: the check, the copy and the increment all
+   * happen without the lock ever being released in between.
+   *
+   * _remoteTxMutex guards only the CNC to remote mirror ring, and is never
+   * held while taking _stateMutex. That direction matters: the mirror is
+   * written from the UART0 task, and if it reached back for _stateMutex
+   * while another task held _stateMutex and wanted the mirror lock, the two
+   * would deadlock. Instead an overflow records a pending fault here and
+   * handle() promotes it, keeping the lock hierarchy strictly one way.
+   *
+   * Nothing takes a lock while holding another. In particular no UART write
+   * is ever performed under a lock.
+   */
+  mutable SemaphoreHandle_t _stateMutex;
+  SemaphoreHandle_t _remoteTxMutex;
+
   bool _active;
   GrblBridgeOwner _owner;
+  GrblBridgeFault _fault;
   uint16_t _outstanding;
   bool _alarm;
-  uint32_t _ownerLastMs;
-  /* Set when the outstanding count falls to zero. The lease is held for
-   * GRBL_BRIDGE_HANDOFF_HOLD_MS from this point before the bus is offered
-   * to the other sender, which covers the gap between one "ok" and the
-   * next streamed line arriving. */
-  bool _busQuiet;
-  uint32_t _busQuietMs;
-  /* Set when the remote sent M2/M30, meaning the program from its SD card
-   * has finished and the bus can be handed over as soon as the last line is
-   * acknowledged, without waiting out GRBL_BRIDGE_HANDOFF_HOLD_MS. */
-  bool _programEnded;
-  uint32_t _remoteDropped;
-  uint32_t _cncOverflow;
-  uint32_t _remoteOverflow;
+  bool _resyncing;
+  bool _sawStatus;
+  bool _inMotion;
+  bool _hold;
+  uint32_t _resyncSinceMs;
+  uint32_t _statusAtMs;
+  uint32_t _lastProgressMs;
+  // Written by whichever task loses bytes on the mirror path, promoted into
+  // _fault by handle(). A diagnostic counter, so a lost increment on a rare
+  // collision only under-reports; the latch is what actually stops traffic.
+  volatile uint32_t _pendingMirrorLoss;
 
-  // partial remote line, +1 so a full length line can still be terminated
-  uint8_t _remoteLine[GRBL_BRIDGE_LINE_MAX + 1];
+  uint32_t _refused;
+  uint32_t _queueRejected;
+  uint32_t _rxLost;
+  uint32_t _badAcks;
+
+  // Partial normal command being assembled for the CNC. Held separately for
+  // each sender so a line split across several writes is counted once, at
+  // its terminator, rather than once per write.
+  uint8_t _remoteLine[GRBL_BRIDGE_LINE_MAX];
   size_t _remoteLineLen;
-  uint32_t _remoteLastByteMs;
+  bool _remoteDiscard;
+  bool _remoteSawCR;
 
-  // partial CNC response line, used only for acknowledgement accounting
-  uint8_t _resp[GRBL_BRIDGE_LINE_MAX];
+  uint8_t _webLine[GRBL_BRIDGE_LINE_MAX];
+  size_t _webLineLen;
+  bool _webDiscard;
+  bool _webSawCR;
+
+  // Partial CNC response line, for acknowledgement and state accounting.
+  // One byte longer than the maximum so the terminator can be stored and the
+  // line can be NUL terminated for inspection without writing out of bounds.
+  uint8_t _resp[GRBL_BRIDGE_LINE_MAX + 1];
   size_t _respLen;
+  bool _respDiscard;
 
-  uint8_t *_cncTx;
-  uint8_t *_remoteTx;
+  uint8_t *_cncTx;    // normal traffic
+  uint8_t *_remoteTx; // CNC -> remote mirror
+  uint8_t *_cncPrio;  // realtime, drained first
   size_t _cncTxUsed;
   size_t _remoteTxUsed;
-  SemaphoreHandle_t _cncTxMutex;
-  SemaphoreHandle_t _remoteTxMutex;
-  /* Guards _owner/_outstanding/_alarm/_ownerLastMs and the counters.
-   * The loop task (handle, enqueueWebCnc) and both UART receive tasks
-   * (onCncBytes, onRemoteBytes) touch this state concurrently, so the
-   * lease decision and the outstanding increment must be atomic together.
-   * Lock order is always _stateMutex then a ring mutex, never the reverse. */
-  /* Guards _remoteLine/_remoteLineLen. Assembly runs on the UART1 receive
-   * task, but the idle line flush runs on the loop task, so both sides need
-   * to be serialised or a partial line can be memcpy'd while it is still
-   * being appended to. */
-  SemaphoreHandle_t _lineMutex;
-  SemaphoreHandle_t _stateMutex;
+  size_t _cncPrioUsed;
+
+  // All of the following require _stateMutex to be held by the caller.
+  void _setFaultLocked(GrblBridgeFault f, const char *detail);
+  void _enterResyncLocked(const char *why);
+  void _flushCncQueuesLocked();
+  void _handleRealtimeLocked(uint8_t c);
+
+  // All or nothing queue admission. Returns false and copies nothing when
+  // the request does not fit, so a command is never truncated on the wire.
+  bool _cncPushLocked(const uint8_t *data, size_t len);
+  // Realtime always gets through, on the priority ring, unless the priority
+  // ring itself is full, which is a fault rather than a silent drop.
+  bool _cncPushRealtimeLocked(uint8_t c);
+
+  // Assemble bytes from one sender and admit each completed line. The caller
+  // must hold _stateMutex for the whole call.
+  void _feedSenderLocked(const uint8_t *data, size_t len, bool fromWeb);
+
+  void _parseCncLineLocked();
+  void _drainMirrorLossLocked();
 
   void _pumpCncTx();
   void _pumpRemoteTx();
-  void _releaseLease();
-  void _takeLease(GrblBridgeOwner who);
-  void _commitRemoteLine(bool terminated);
-  void _flushIdleRemoteLine();
-  void _parseCncLine();
-  void _noteRealtime(uint8_t c);
-  size_t _cncPush(const uint8_t *data, size_t len);
-  size_t _remotePush(const uint8_t *data, size_t len);
-  size_t _cncPop(uint8_t *out, size_t max);
+
   size_t _remotePop(uint8_t *out, size_t max);
-  void _cncRestore(const uint8_t *data, size_t len);
+  void _remoteMirror(const uint8_t *data, size_t len);
   void _remoteRestore(const uint8_t *data, size_t len);
 };
 

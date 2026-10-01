@@ -147,8 +147,13 @@ bool Esp3D::begin() {
   // GRBL two sender arbiter. Must start after both UARTs are up.
 #ifdef GRBL_BRIDGE_FEATURE
   if (!grbl_bridge.begin()) {
-    esp3d_log_e("Error with GRBL bridge");
-    res = false;
+    /* Deliberately not fatal. Arbitration needs both UARTs, and the bridge
+     * serial can be switched off at runtime, so a boot that refused to come
+     * up here would leave no WebUI to switch it back on with. Instead the CNC
+     * port keeps stock behaviour, /bridge reports "off", [ESP420] reports
+     * OFF and the web badge shows a grey "bridge inactive". */
+    esp3d_log_e("GRBL bridge OFF: arbitration is not running, the CNC port "
+                "is a plain serial port and the pendant is disconnected");
   }
 #endif  // GRBL_BRIDGE_FEATURE
   // Setup Filesystem
@@ -240,7 +245,14 @@ bool Esp3D::end() {
 #if defined(ESP_SERIAL_BRIDGE_OUTPUT)
   serial_bridge_service.end();
 #endif  // ESP_SERIAL_BRIDGE_OUTPUT
+#if COMMUNICATION_PROTOCOL == RAW_SERIAL || COMMUNICATION_PROTOCOL == MKS_SERIAL
+  esp3d_serial_service.end();
+#endif  // COMMUNICATION_PROTOCOL == RAW_SERIAL || COMMUNICATION_PROTOCOL ==
+        // MKS_SERIAL
 #ifdef GRBL_BRIDGE_FEATURE
+  // Must come after both serial services. Their receive tasks call into the
+  // bridge, so tearing the bridge down first would free its buffers while a
+  // task could still be inside a callback.
   grbl_bridge.end();
 #endif  // GRBL_BRIDGE_FEATURE
 #if defined(WIFI_FEATURE) || defined(ETH_FEATURE)
@@ -252,10 +264,6 @@ bool Esp3D::end() {
 #if defined(USB_SERIAL_FEATURE)
   esp3d_usb_serial_service.end();
 #endif  // USB_SERIAL_FEATURE
-#if COMMUNICATION_PROTOCOL == RAW_SERIAL || COMMUNICATION_PROTOCOL == MKS_SERIAL
-  esp3d_serial_service.end();
-#endif  // COMMUNICATION_PROTOCOL == RAW_SERIAL || COMMUNICATION_PROTOCOL ==
-        // MKS_SERIAL
 #ifdef AUTHENTICATION_FEATURE
   AuthenticationService::end();
 #endif  // AUTHENTICATION_FEATURE

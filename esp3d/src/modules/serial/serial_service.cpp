@@ -109,7 +109,7 @@ size_t ESP3DSerialService::writeBytes(const uint8_t *buffer, size_t size) {
     return 0;
   }
 #ifdef GRBL_BRIDGE_FEATURE
-  if (_id == MAIN_SERIAL && grbl_bridge.active()) {
+  if (_id == MAIN_SERIAL && grbl_bridge.status().active) {
     /* Single ordered transmit path.
      * Every producer of CNC bound bytes (web UI, gcode host, ESP3D
      * internals) funnels through here, so the remote and the web can never

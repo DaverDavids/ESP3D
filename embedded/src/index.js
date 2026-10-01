@@ -886,3 +886,97 @@ function uploadFirmware() {
 
     xmlhttpupload.send(formData);
 }
+
+/*
+ * GRBL bus lockout badge.
+ *
+ * Mirrors the markup that embedded/config/inject-bridge-badge.ps1 injects
+ * into the built artifact, so that a real `npm run build` produces the same
+ * indicator. Keep the state words in step with
+ * HTTP_Server::handle_bridge_status().
+ *
+ * Only "web" is ever green. Every other state is shown rather than hidden,
+ * because a missing badge reads as "go ahead", and an unreachable endpoint
+ * has to be a visible grey UNKNOWN rather than nothing at all.
+ */
+function initBridgeBadge() {
+    const id = "esp3dBridgeBadge";
+    const style = document.createElement("style");
+    style.id = id + "Css";
+    style.textContent =
+        "#" + id +
+        "{position:fixed;right:10px;bottom:10px;z-index:2147483000;display:none;" +
+        "padding:6px 12px;border-radius:6px;" +
+        'font:600 13px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;' +
+        "color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.35);" +
+        "pointer-events:none;max-width:60vw}";
+    document.head.appendChild(style);
+
+    let el = null;
+    const text = {
+        web: "WEB OWNER - pendant commands refused",
+        remote: "REMOTE LOCKED - web commands refused",
+        fault: "BRIDGE FAULT - nothing passes until [ESP431]",
+        alarm: "ALARM - controller needs $X from its owner",
+        hold: "FEED HOLD - motion suspended",
+        resync: "RESYNC - waiting for the controller after a reset",
+        none: "NO OWNER - both senders refused",
+        off: "bridge inactive",
+        unknown: "UNKNOWN - bridge state unavailable"
+    };
+    const colour = {
+        web: "#1b5e20",
+        remote: "#b3261e",
+        fault: "#b3261e",
+        alarm: "#8a5a00",
+        hold: "#8a5a00",
+        resync: "#8a5a00",
+        none: "#444",
+        off: "#444",
+        unknown: "#444"
+    };
+
+    function ensure() {
+        if (el === null) {
+            el = document.getElementById(id);
+        }
+        if (el === null) {
+            el = document.createElement("div");
+            el.id = id;
+            document.body.appendChild(el);
+        }
+        return el;
+    }
+
+    function paint(state) {
+        const e = ensure();
+        if (text[state] === undefined) {
+            state = "unknown";
+        }
+        e.textContent = text[state];
+        e.style.background = colour[state];
+        e.style.display = "block";
+    }
+
+    function poll() {
+        fetch("/bridge", { cache: "no-store" })
+            .then(function (r) {
+                if (!r.ok) {
+                    throw new Error("http " + r.status);
+                }
+                return r.text();
+            })
+            .then(function (t) {
+                paint((t || "").trim());
+            })
+            .catch(function () {
+                paint("unknown");
+            });
+    }
+
+    ensure();
+    poll();
+    setInterval(poll, 1000);
+}
+
+initBridgeBadge();

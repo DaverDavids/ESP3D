@@ -46,6 +46,11 @@ void HTTP_Server::handle_root() {
   String contentType = esp3d_string::getContentType(path.c_str());
   String pathWithGz = path + ".gz";
   // if have a index.html or gzip version this is default root page
+  // NOTE: an index.html uploaded to the filesystem shadows the embedded page,
+  // and the embedded page is the one carrying the GRBL bus lockout badge
+  // injected by embedded/config/inject-bridge-badge.ps1. Append
+  // ?forcefallback=yes to reach the badge in that case, or rebuild the WebUI
+  // so the badge comes from embedded/src/index.js.
   if ((ESP_FileSystem::exists(pathWithGz.c_str()) ||
        ESP_FileSystem::exists(path.c_str())) &&
       !_webserver->hasArg("forcefallback") &&

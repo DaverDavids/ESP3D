@@ -35,31 +35,52 @@
  * into the embedded page. Kept deliberately minimal: one word, no JSON, no
  * parsing, so the injected script stays a few lines.
  *
- * Anything that is not exactly "remote" is treated by the script as
- * "client commands allowed", so a 404 or an error here fails safe and
- * simply leaves the indicator hidden. */
+ * States, and what the operator is expected to do about each:
+ *   remote  pendant owns the CNC, web commands are refused
+ *   web     WebUI owns the CNC, pendant commands are refused
+ *   fault   something was lost or miscounted, nothing normal passes
+ *   alarm   controller reported <Alarm|..>, needs $X from whoever owns it
+ *   hold    controller reported a Hold, motion suspended
+ *   resync  a reset happened, waiting for the controller to prove it is back
+ *   none    no sender owns the CNC, so both are refused
+ *   off     the bridge did not come up, arbitration is not running
+ * Anything the bridge cannot classify is reported as "unknown" rather than
+ * being folded into "none", so a fault or a new state can never be
+ * displayed as "go ahead". The injected script shows every state except
+ * "web" as locked out, and only "web" as green. */
 void HTTP_Server::handle_bridge_status() {
   // Same guard as the other handlers. The page is only ever shown after a
   // successful login, so a 401 here simply leaves the badge hidden.
   if (AuthenticationService::getAuthenticatedLevel() ==
       ESP3DAuthenticationLevel::guest) {
     set_http_headers();
-    _webserver->send(401, "text/plain", "free");
+    _webserver->send(401, "text/plain", "unknown");
     return;
   }
   set_http_headers();
-  const char *state = "free";
-  if (grbl_bridge.active()) {
-    switch (grbl_bridge.owner()) {
-      case GrblBridgeOwner::remote:
-        state = grbl_bridge.alarm() ? "alarm" : "remote";
-        break;
-      case GrblBridgeOwner::web:
-        state = "web";
-        break;
-      default:
-        state = "free";
-        break;
+  const char *state = "off";
+  ESP3DGrblBridge::Status s = grbl_bridge.status();
+  if (s.active) {
+    if (s.faulted) {
+      state = "fault";
+    } else if (s.alarm) {
+      state = "alarm";
+    } else if (s.hold) {
+      state = "hold";
+    } else if (s.resyncing) {
+      state = "resync";
+    } else {
+      switch (s.owner) {
+        case GrblBridgeOwner::remote:
+          state = "remote";
+          break;
+        case GrblBridgeOwner::web:
+          state = "web";
+          break;
+        default:
+          state = "none";
+          break;
+      }
     }
   }
   _webserver->send(200, "text/plain", state);

@@ -704,6 +704,19 @@ void ESP3DCommands::execute_internal_command(int cmd, int cmd_params_pos,
     case 444:
       ESP444(cmd_params_pos, msg);
       break;
+#ifdef GRBL_BRIDGE_FEATURE
+    // GRBL two sender bus ownership, explicit and never automatic
+    // owner= is web / remote / none, omitted means report the state
+    //[ESP430]<owner=web|remote|none><pwd=admin>
+    case 430:
+      ESP430(cmd_params_pos, msg);
+      break;
+    // Clear a latched GRBL bridge fault, never automatic
+    //[ESP431]<pwd=admin>
+    case 431:
+      ESP431(cmd_params_pos, msg);
+      break;
+#endif  // GRBL_BRIDGE_FEATURE
 #ifdef MDNS_FEATURE
     // Get ESP3D list
     //[ESP450] pwd=<admin/user password>
@@ -1335,24 +1348,29 @@ bool ESP3DCommands::dispatch(ESP3DMessage *msg) {
 #ifdef GRBL_BRIDGE_FEATURE
       /* Single choke point for every client side producer: HTTP /command,
        * the WebUI terminal websocket, telnet and the gcode host all land
-       * here. Refuse a queued class command while the offline remote owns
-       * the GRBL bus instead of splicing it into a running job. Realtime
-       * bytes (status poll, feed hold, reset) are always let through, so
-       * the page keeps updating and the operator can still stop the
-       * machine. */
+       * here. Refuse a queued class command while the offline pendant owns
+       * the GRBL bus, or while a fault is latched, instead of splicing it
+       * into a running job. Realtime bytes (status poll, feed hold, reset)
+       * are always let through, so the page keeps updating and the operator
+       * can still stop the machine. */
       /* Classify with the bridge's own table rather than
        * esp3d_string::isRealTimeCommand(), so this gate can never refuse a
        * byte the bridge would have forwarded. The helper is gated on the
        * runtime firmware target setting, which can drift from DEFAULT_FW,
        * and a false refusal here would black out the WebUI status readout
-       * during a remote job. */
-      if (grbl_bridge.active() && !grbl_bridge.webTxAllowed() &&
+       * during a pendant job. */
+      if (grbl_bridge.status().active && !grbl_bridge.webTxAllowed() &&
           !grbl_bridge.isRealtime(msg->data, msg->size) &&
           msg->type != ESP3DMessageType::realtimecmd) {
-        esp3d_log_e("Refused client command, remote owns the GRBL bus");
-        dispatch("TX locked out: the offline remote owns the GRBL bus, retry "
-                 "when it goes idle",
-                 ESP3DClientType::all_clients, no_id,
+        ESP3DGrblBridge::Status s = grbl_bridge.status();
+        const char *why =
+            s.faulted ? "a fault is latched, clear it with [ESP431]"
+            : (s.resyncing ? "the controller is resynchronising after a reset"
+                           : "the offline pendant owns the GRBL bus");
+        esp3d_log_e("Refused client command: %s", why);
+        String notice = String("TX locked out: ") + why +
+                        ", retry when it is safe";
+        dispatch(notice.c_str(), ESP3DClientType::all_clients, no_id,
                  ESP3DMessageType::core, ESP3DClientType::system);
         esp3d_message_manager.deleteMsg(msg);
         return false;

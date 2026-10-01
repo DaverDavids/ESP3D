@@ -105,6 +105,20 @@
 #define ESP_BRIDGE_RX_PIN 4
 #define ESP_BRIDGE_TX_PIN 5
 
+/* GRBL two sender arbiter: the offline pendant and the WebUI share one CNC
+ * UART. Opt in explicitly.
+ *
+ * Without it UART1 stays a dumb byte mirror of the CNC output, which is stock
+ * ESP3D behaviour, and nothing arbitrates. With it exactly one sender owns the
+ * CNC at a time, ownership is granted explicitly rather than on a timer, and a
+ * transport or accounting fault latches until an operator clears it, so a long
+ * move can never be mistaken for an abandoned bus.
+ *
+ * Requires RAW_SERIAL, an ESP_SERIAL_BRIDGE_OUTPUT distinct from
+ * ESP_SERIAL_OUTPUT, and all four pin macros above set to real pins.
+ */
+#define GRBL_BRIDGE_FEATURE
+
 /* Serial buffer size
  *  Maximum size of the serial buffer
  */

@@ -90,18 +90,25 @@ void HTTP_Server::handle_web_command() {
       }
     } else {
 #ifdef GRBL_BRIDGE_FEATURE
-      // The offline remote currently owns the GRBL bus. Refuse the queued
-      // class command instead of splicing it into a running job. Realtime
-      // bytes such as the status poll are unaffected and always pass, so
-      // the page keeps updating while the operator works from the pendant.
-      if (!grbl_bridge.webTxAllowed() &&
+      // The pendant owns the GRBL bus, or a fault is latched. Refuse the
+      // queued class command instead of splicing it into a running job.
+      // Realtime bytes such as the status poll are unaffected and always
+      // pass, so the page keeps updating while the operator works from the
+      // pendant. webTxAllowed() is only consulted when the bridge is actually
+      // running: with arbitration off the CNC port is a plain serial port and
+      // must behave like stock ESP3D.
+      if (grbl_bridge.status().active && !grbl_bridge.webTxAllowed() &&
           !ESP3DGrblBridge::isRealtime(reinterpret_cast<const uint8_t *>(
                                            cmd.c_str()),
                                        cmd.length())) {
-        esp3d_log_e("Web TX refused, remote owns the GRBL bus");
+        ESP3DGrblBridge::Status s = grbl_bridge.status();
+        const char *why =
+            s.faulted ? "a fault is latched, clear it with [ESP431]"
+            : (s.resyncing ? "the controller is resynchronising after a reset"
+                           : "the offline pendant owns the GRBL bus");
+        esp3d_log_e("Web TX refused: %s", why);
         _webserver->send(409, "text/plain",
-                         "TX locked out: the offline remote owns the GRBL "
-                         "bus, retry when it goes idle");
+                         String("TX locked out: ") + why);
         return;
       }
 #endif  // GRBL_BRIDGE_FEATURE

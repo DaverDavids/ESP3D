@@ -143,6 +143,10 @@ class ESP3DCommands {
 #endif  // WIFI_FEATURE
   void ESP420(int cmd_params_pos, ESP3DMessage* msg);
   void ESP444(int cmd_params_pos, ESP3DMessage* msg);
+#ifdef GRBL_BRIDGE_FEATURE
+  void ESP430(int cmd_params_pos, ESP3DMessage* msg);
+  void ESP431(int cmd_params_pos, ESP3DMessage* msg);
+#endif  // GRBL_BRIDGE_FEATURE
 #ifdef MDNS_FEATURE
   void ESP450(int cmd_params_pos, ESP3DMessage* msg);
 #endif  // MDNS_FEATURE
