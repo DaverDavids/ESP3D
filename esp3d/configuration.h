@@ -47,7 +47,7 @@
 // WIFI_POWER_8_5dBm
 // WIFI_POWER_15dBm
 
-// #define ESP32_WIFI_TX_POWER WIFI_POWER_15dBm
+#define ESP32_WIFI_TX_POWER WIFI_POWER_13dBm
 
 /************************************
  *
