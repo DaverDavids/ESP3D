@@ -1,0 +1,256 @@
+From: <Saved by Blink>
+Snapshot-Content-Location: http://esp3d.local/
+Subject: esp3d
+Date: Thu, 1 Oct 2026 19:49:45 -0400
+MIME-Version: 1.0
+Content-Type: multipart/related;
+	type="text/html";
+	boundary="----MultipartBoundary--Bd2Zlp13mCHHC0H856grDzMeFGWIAZ6sIijZlhEiY2----"
+
+
+------MultipartBoundary--Bd2Zlp13mCHHC0H856grDzMeFGWIAZ6sIijZlhEiY2----
+Content-Type: text/html
+Content-ID: <frame-D1F464DDB5764DE107C8058E9FCA02F6@mhtml.blink>
+Content-Transfer-Encoding: quoted-printable
+Content-Location: http://esp3d.local/
+
+<!DOCTYPE html><html lang=3D"en"><head><meta http-equiv=3D"Content-Type" co=
+ntent=3D"text/html; charset=3DUTF-8"><link rel=3D"stylesheet" type=3D"text/=
+css" href=3D"cid:css-24700f6b-1bfc-4a68-9799-c2be5a47c121@mhtml.blink" /><l=
+ink rel=3D"stylesheet" type=3D"text/css" href=3D"cid:css-9dd98319-c870-40fc=
+-a54b-36075d06e2ab@mhtml.blink" /><meta http-equiv=3D"X-UA-Compatible" cont=
+ent=3D"IE=3Dedge"><meta name=3D"viewport" content=3D"width=3Ddevice-width,i=
+nitial-scale=3D1"><meta name=3D"theme-color" content=3D"#5755d9"><meta name=
+=3D"msapplication-navbutton-color" content=3D"#5755d9"><meta name=3D"apple-=
+mobile-web-app-status-bar-style" content=3D"#5755d9"><title>esp3d</title></=
+head><body><div><ul><li id=3D"FWLink">Firmware</li><li id=3D"UiLink">Interf=
+ace</li><li id=3D"hlpLink">Help</li><li id=3D"espLink" class=3D"hide">ESP3D=
+</li><li class=3D"menuspacer"></li><li id=3D"loginLink" class=3D"hide">Logi=
+n</li><li id=3D"verLink" disabled=3D"disabled">v3.1.3</li></ul></div><hr><c=
+enter><div id=3D"MSGLimited"></div><div id=3D"MSG" class=3D"text-error"></d=
+iv></center><div id=3D"consolePanel" class=3D"panel"><div id=3D"consoleHead=
+er" class=3D"panel-header">Terminal</div><div id=3D"consoleBody" class=3D"p=
+anel-body no-footer" style=3D"display: none;"><div class=3D"controlBar"><in=
+put class=3D"formControl" spellcheck=3D"false" autocorrect=3D"off" autocomp=
+lete=3D"off" value=3D"" id=3D"customCmdTxt"> <button class=3D"btn" id=3D"cm=
+dBtn">Send</button><div class=3D"controlBar"><input type=3D"checkbox" id=3D=
+"monitor_enable_autoscroll" checked=3D"checked"> <label for=3D"monitor_enab=
+le_autoscroll">Autoscroll</label></div></div><pre id=3D"consoleContent"></p=
+re></div></div><div id=3D"fileSystem" class=3D"panel"><div id=3D"fileSystem=
+Header" class=3D"panel-header">FileSystem</div><div id=3D"fileSystemBody" c=
+lass=3D"panel-body no-footer"><div class=3D"controlBar"><input class=3D"hid=
+e" type=3D"file" value=3D"" id=3D"files" multiple=3D"multiple"> <button cla=
+ss=3D"btn" id=3D"refresh">Refresh</button> <button class=3D"btn" id=3D"crea=
+tedir" title=3D"Create directory"><svg xmlns=3D"http://www.w3.org/2000/svg"=
+ width=3D"24" height=3D"24" viewBox=3D"0 0 24 24" fill=3D"none" stroke=3D"w=
+hite" stroke-width=3D"2" stroke-linecap=3D"round" stroke-linejoin=3D"round"=
+><path d=3D"M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 =
+2 0 0 1 2 2z"></path><line x1=3D"12" y1=3D"11" x2=3D"12" y2=3D"17"></line><=
+line x1=3D"9" y1=3D"14" x2=3D"15" y2=3D"14"></line></svg></button> <button =
+class=3D"btn" id=3D"uploadFiles" title=3D"upload files"><svg xmlns=3D"http:=
+//www.w3.org/2000/svg" width=3D"24" height=3D"24" viewBox=3D"0 0 24 24" fil=
+l=3D"none" stroke=3D"white" stroke-width=3D"2" stroke-linecap=3D"round" str=
+oke-linejoin=3D"round"><path d=3D"M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12=
+a2 2 0 0 0 2-2V9z"></path><polyline points=3D"13 2 13 9 20 9"></polyline><l=
+ine x1=3D"12" y1=3D"11" x2=3D"12" y2=3D"17"></line><line x1=3D"9" y1=3D"14"=
+ x2=3D"15" y2=3D"14"></line></svg></button><div class=3D"label hide" id=3D"=
+prgfiletext">0%</div><progress class=3D"progbar hide" id=3D"prgfile" max=3D=
+"100" value=3D"50"></progress></div><div id=3D"filecontent" class=3D"panel"=
+><div id=3D"filecontentbody" class=3D"panel-body no-header"><div class=3D"l=
+abel" id=3D"path">/</div><div id=3D"fileList"></div></div><div id=3D"fileco=
+ntentFooter" class=3D"panel-footer"><span>Status: ok&nbsp;&nbsp;</span><spa=
+n>|&nbsp;&nbsp;Total space: 1.87 MB&nbsp;&nbsp;</span><span>|&nbsp;&nbsp;Us=
+ed space: 8.00 KB&nbsp;&nbsp;</span><span>|&nbsp;&nbsp;Occupation: <meter m=
+in=3D"0" max=3D"100" high=3D"90" value=3D"0"></meter>&nbsp;0%</span></div><=
+/div></div></div><div id=3D"firmware" class=3D"panel hide"><div id=3D"firmw=
+areHeader" class=3D"panel-header">Firmware update</div><div id=3D"firmwareB=
+ody" class=3D"panel-body no-footer" style=3D"display: none;"><div class=3D"=
+controlBar"><input class=3D"hide" type=3D"file" value=3D"" accept=3D".bin" =
+id=3D"filefw"> <button class=3D"btn" id=3D"uploapFW">Select File</button><d=
+iv class=3D"label hide" id=3D"prgupdatetext">0%</div><progress class=3D"pro=
+gbar hide" id=3D"prgupdate" max=3D"100" value=3D"50"></progress></div></div=
+></div><br><div id=3D"loginpage" class=3D"modal hide"><div class=3D"modal-c=
+ontent"><div class=3D"modal-header">Identification</div><div class=3D"modal=
+-body"><div class=3D"controlBar"><div class=3D"label">User:</div><input id=
+=3D"loginInput" spellcheck=3D"false" autocorrect=3D"off" autocomplete=3D"of=
+f"></div><hr><div class=3D"controlBar"><div class=3D"label">Password:</div>=
+<input type=3D"password" id=3D"passwordInput" spellcheck=3D"false" autocorr=
+ect=3D"off" autocomplete=3D"off"></div></div><div id=3D"loginMsg" class=3D"=
+hide text-error-login">Invalid user or password</div><div class=3D"modal-fo=
+oter"><button type=3D"button" class=3D"btn m-1" id=3D"disconnectbutton">Dis=
+connect</button> <button type=3D"button" class=3D"btn m-1" id=3D"loginbutto=
+n">Login</button></div></div></div>
+<div id=3D"esp3dBridgeBadge" style=3D"background: rgb(27, 94, 32); display:=
+ block;">WEB OWNER - pendant commands refused</div></body></html>
+------MultipartBoundary--Bd2Zlp13mCHHC0H856grDzMeFGWIAZ6sIijZlhEiY2----
+Content-Type: text/css
+Content-Transfer-Encoding: quoted-printable
+Content-Location: cid:css-9dd98319-c870-40fc-a54b-36075d06e2ab@mhtml.blink
+
+@charset "utf-8";
+
+#esp3dBridgeBadge { position: fixed; right: 10px; bottom: 10px; z-index: 21=
+47483000; display: none; padding: 6px 12px; border-radius: 6px; font: 600 1=
+3px / 1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: =
+rgb(255, 255, 255); box-shadow: rgba(0, 0, 0, 0.35) 0px 2px 8px; pointer-ev=
+ents: none; max-width: 60vw; }
+------MultipartBoundary--Bd2Zlp13mCHHC0H856grDzMeFGWIAZ6sIijZlhEiY2----
+Content-Type: text/css
+Content-Transfer-Encoding: quoted-printable
+Content-Location: cid:css-24700f6b-1bfc-4a68-9799-c2be5a47c121@mhtml.blink
+
+@charset "utf-8";
+
+* { font-family: sans-serif; color: rgb(87, 85, 217); background-color: rgb=
+(238, 240, 243); user-select: none; }
+
+body { min-width: 360px; }
+
+hr { border-top: 1px solid rgb(87, 85, 217); }
+
+.controlBar { display: flex; flex-wrap: wrap; padding: 10px 10px 10px 15px;=
+ background-color: rgb(255, 255, 255); margin-bottom: 6px; }
+
+.cmd { color: rgb(85, 85, 85); }
+
+label { display: block; width: auto; padding: 3px 12px; color: rgb(87, 85, =
+217); background-color: rgb(255, 255, 255); cursor: pointer; }
+
+pre { padding-left: 5px; padding-right: 5px; }
+
+.modal { position: fixed; z-index: 10000; padding-top: 100px; left: 0px; to=
+p: 0px; width: 100%; height: 100%; overflow: auto; background-color: rgba(0=
+, 0, 0, 0.4); }
+
+.modal-content { border-radius: 10px; background-color: rgb(87, 85, 217); b=
+order: 1px solid rgb(87, 85, 217); position: relative; margin: auto; paddin=
+g: 0px; max-width: 450px; }
+
+.modal-header { padding: 16px; color: rgb(255, 255, 255); background-color:=
+ rgb(87, 85, 217); border-top-left-radius: 10px; border-top-right-radius: 1=
+0px; border-bottom: 1px solid rgb(87, 85, 217); height: 2.5rem; line-height=
+: 2.5rem; font-size: 1.5rem; }
+
+.modal-body { padding: 10px 16px; background-color: rgb(255, 255, 255); }
+
+.modal-footer { padding: 16px; height: 2.5em; background-color: rgb(255, 25=
+5, 255); border-top: 1px solid rgb(87, 85, 217); border-bottom-left-radius:=
+ 10px; border-bottom-right-radius: 10px; display: flex; flex-direction: row=
+-reverse; }
+
+input { display: block; width: auto; height: 1.5rem; padding: 6px 12px; lin=
+e-height: 1.42857; border-radius: 4px; color: rgb(87, 85, 217); background-=
+color: rgb(255, 255, 255); outline: 0px; }
+
+input { border: 1px solid rgb(87, 85, 217); }
+
+button { display: block; width: auto; height: 2.4rem; padding: 6px 12px; li=
+ne-height: 1.42857; vertical-align: middle; cursor: pointer; border: 1px so=
+lid rgb(0, 0, 0); white-space: nowrap; border-radius: 4px; color: rgb(255, =
+255, 255); background-color: rgb(87, 85, 217); }
+
+::-webkit-progress-value { background-color: rgb(87, 85, 217); }
+
+::-webkit-progress-bar { background-color: rgb(241, 241, 241); }
+
+.progbar, progress { margin-top: 10px; height: 1rem; background-color: rgb(=
+241, 241, 241); border: 1px solid rgb(87, 85, 217); }
+
+.label { height: 2.4rem; padding: 6px 12px; line-height: 1.42857; vertical-=
+align: middle; display: inline-block; width: auto; color: rgb(87, 85, 217);=
+ background-color: rgb(255, 255, 255); overflow-wrap: anywhere; }
+
+.controlBar > button { margin-right: 15px; }
+
+meter { background-color: rgb(255, 255, 255); }
+
+button:active { background-color: rgb(11, 8, 153); }
+
+ul { display: flex; flex-wrap: wrap; list-style-type: none; margin: 3px; pa=
+dding: 3px; }
+
+pre { margin: 10px; min-height: 350px; max-height: 350px; border: 1px solid=
+ rgb(87, 85, 217); overflow-y: auto; overflow-wrap: anywhere; }
+
+li { padding: 9px 14px; margin: 0px 1rem; border: 1px hidden; }
+
+.menuspacer { flex-grow: 1; pointer-events: none; }
+
+.panel { margin: 10px; border-radius: 10px; }
+
+.text-primary { color: rgb(87, 85, 217); }
+
+.text-error { color: red; }
+
+.text-error-login { background-color: rgb(255, 255, 255); color: red; text-=
+align: center; }
+
+.disabled { pointer-events: none; }
+
+.panel-header { border-top-left-radius: 10px; border-top-right-radius: 10px=
+; background-color: rgb(87, 85, 217); color: rgb(255, 255, 255); height: 2r=
+em; line-height: 2rem; padding: 2px 15px; cursor: pointer; }
+
+.no-header { border-top-left-radius: 10px; border-top-right-radius: 10px; b=
+order-top: 1px solid rgb(87, 85, 217); }
+
+.no-footer { border-bottom-left-radius: 10px; border-bottom-right-radius: 1=
+0px; border-bottom: 1px solid rgb(87, 85, 217); }
+
+.panel-footer { border-bottom-left-radius: 10px; border-bottom-right-radius=
+: 10px; border: 1px solid rgb(87, 85, 217); background-color: rgb(255, 255,=
+ 255); min-height: 2rem; line-height: 2rem; padding: 2px 15px; margin: 0px;=
+ display: flex; flex-wrap: wrap; }
+
+.panel-footer span { background-color: rgb(255, 255, 255); }
+
+.panel-body { min-height: 50px; background-color: rgb(255, 255, 255); borde=
+r-right: 1px solid rgb(87, 85, 217); border-left: 1px solid rgb(87, 85, 217=
+); }
+
+.no-header { padding: 10px; }
+
+.hide { display: none; }
+
+.fileicon, .fileitem, .filesize, .filetype { padding: 5px; border-radius: 5=
+px; background-color: rgb(255, 255, 255); }
+
+.fileLineTail { background-color: rgb(255, 255, 255); display: flex; justif=
+y-content: space-between; column-gap: 10px; }
+
+.fileLineHead { background-color: rgb(255, 255, 255); display: flex; justif=
+y-content: space-between; column-gap: 10px; }
+
+.fileLine { display: flex; justify-content: space-between; line-height: 1.4=
+2857; border-top: 1px solid rgb(87, 85, 217); background-color: rgb(255, 25=
+5, 255); padding: 8px; }
+
+svg { background-color: rgb(255, 255, 255); }
+
+.fileicon:hover { cursor: pointer; background-color: rgb(87, 85, 217); colo=
+r: rgb(87, 85, 217); }
+
+.fileitem:hover, li:active, li:hover { cursor: pointer; background-color: r=
+gb(87, 85, 217); color: rgb(255, 255, 255); text-align: center; }
+
+.fileitem:active { background-color: rgb(11, 8, 153); }
+
+.fileicon:hover > svg { cursor: pointer; background-color: rgb(87, 85, 217)=
+; color: rgb(87, 85, 217); }
+
+.m-1 { margin-left: 1rem; margin-right: 1rem; }
+
+button > svg { background-color: rgb(87, 85, 217); text-decoration-color: r=
+gb(255, 255, 255); color: rgb(255, 255, 255) !important; }
+
+.fileicon:active, .fileicon:active > svg, button:active > svg { background-=
+color: rgb(11, 8, 153); }
+
+#MSG { text-align: center; }
+
+#monitor_enable_autoscroll { margin: 0px; cursor: pointer; }
+
+@media screen and (max-width: 600px) {
+  .menuspacer { display: none; }
+}
+------MultipartBoundary--Bd2Zlp13mCHHC0H856grDzMeFGWIAZ6sIijZlhEiY2------
