@@ -102,8 +102,8 @@
 #define ESP_RX_PIN 20
 #define ESP_TX_PIN 21
 // Bridge serial (UART1) - offline remote side
-#define ESP_BRIDGE_RX_PIN 4
-#define ESP_BRIDGE_TX_PIN 5
+#define ESP_BRIDGE_RX_PIN 5
+#define ESP_BRIDGE_TX_PIN 4
 
 /* GRBL two sender arbiter: the offline pendant and the WebUI share one CNC
  * UART. Opt in explicitly.
